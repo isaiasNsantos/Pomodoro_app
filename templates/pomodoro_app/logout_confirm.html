@@ -1,0 +1,29 @@
+<!-- templates/pomodoro_app/logout_confirm.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0">Confirmar Logout</h4>
+            </div>
+            <div class="card-body text-center">
+                <h5 class="mb-4">Tem certeza que deseja sair?</h5>
+                
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-danger btn-lg">
+                            <i class="fas fa-sign-out-alt"></i> Sim, sair
+                        </button>
+                        <a href="{% url 'pomodoro:dashboard' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

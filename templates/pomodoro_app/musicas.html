@@ -1,0 +1,756 @@
+<!-- templates/pomodoro_app/musicas.html -->
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Músicas para Estudo - Pomodoro Study{% endblock %}
+
+{% block extra_css %}
+<style>
+    .music-card {
+        border: none;
+        border-radius: 15px;
+        transition: all 0.3s;
+        overflow: hidden;
+    }
+    .music-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .music-cover {
+        height: 120px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 3rem;
+    }
+    .music-info {
+        padding: 15px;
+    }
+    .music-actions {
+        padding: 10px 15px;
+        border-top: 1px solid #eee;
+        background: #f8f9fa;
+    }
+    .play-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s;
+    }
+    .play-btn:hover {
+        transform: scale(1.1);
+    }
+    .progress-music {
+        height: 5px;
+        border-radius: 2px;
+    }
+    .upload-area {
+        border: 3px dashed #dee2e6;
+        border-radius: 15px;
+        padding: 40px;
+        text-align: center;
+        transition: all 0.3s;
+        cursor: pointer;
+    }
+    .upload-area:hover {
+        border-color: #0d6efd;
+        background-color: #f8f9fa;
+    }
+    .upload-area.dragover {
+        border-color: #0d6efd;
+        background-color: #e7f1ff;
+    }
+    .playlist-card {
+        border-left: 5px solid;
+        border-radius: 10px;
+    }
+    .tag-badge {
+        font-size: 0.7rem;
+        margin: 2px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <!-- Cabeçalho -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow border-0">
+                <div class="card-body">
+                    <h1 class="display-6 text-primary">
+                        <i class="fas fa-music"></i> Músicas para Estudo
+                    </h1>
+                    <p class="lead mb-0">Adicione suas músicas favoritas para focar melhor nos estudos</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Upload de Música -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow border-0 h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-upload"></i> Adicionar Nova Música
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'pomodoro:upload_musica' %}" enctype="multipart/form-data" id="upload-form">
+                        {% csrf_token %}
+                        
+                        <!-- Área de Upload Drag & Drop -->
+                        <div class="upload-area mb-4" id="upload-area">
+                            <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                            <h5>Arraste e solte seu arquivo aqui</h5>
+                            <p class="text-muted">ou clique para selecionar</p>
+                            <small class="text-muted d-block">Formatos suportados: MP3, WAV, OGG, M4A</small>
+                            <small class="text-muted d-block">Tamanho máximo: 50MB</small>
+                            
+                            <input type="file" name="arquivo_audio" id="id_arquivo_audio" 
+                                   class="form-control mt-3 d-none" accept=".mp3,.wav,.ogg,.m4a" required>
+                            
+                            <div id="file-info" class="mt-3" style="display: none;">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-file-audio"></i>
+                                    <span id="file-name"></span>
+                                    <span id="file-size" class="badge bg-secondary ms-2"></span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Nome da Música -->
+                        <div class="mb-3">
+                            <label for="id_nome" class="form-label fw-bold">Nome da Música</label>
+                            <input type="text" name="nome" id="id_nome" class="form-control" 
+                                   placeholder="Ex: Música para Foco 1" required>
+                        </div>
+                        
+                        <!-- Descrição -->
+                        <div class="mb-3">
+                            <label for="id_descricao" class="form-label fw-bold">Descrição (opcional)</label>
+                            <textarea name="descricao" id="id_descricao" class="form-control" 
+                                      rows="2" placeholder="Descreva sua música..."></textarea>
+                        </div>
+                        
+                        <!-- Tags -->
+                        <div class="mb-3">
+                            <label for="id_tags" class="form-label fw-bold">Tags</label>
+                            <input type="text" name="tags" id="id_tags" class="form-control" 
+                                   placeholder="foco, concentração, instrumental, relaxante">
+                            <small class="text-muted">Separe as tags por vírgula</small>
+                        </div>
+                        
+                        <!-- Pública -->
+                        <div class="form-check form-switch mb-4">
+                            <input type="checkbox" name="publica" id="id_publica" class="form-check-input">
+                            <label for="id_publica" class="form-check-label">
+                                <i class="fas fa-globe"></i> Tornar pública
+                            </label>
+                            <small class="text-muted d-block">Outros usuários poderão usar esta música</small>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-save"></i> Salvar Música
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player de Música -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow border-0 h-100">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-play-circle"></i> Player de Música
+                    </h5>
+                </div>
+                <div class="card-body text-center">
+                    <div id="music-player" style="display: none;">
+                        <!-- Capa da Música -->
+                        <div class="music-cover rounded mb-3" id="music-cover">
+                            <i class="fas fa-music"></i>
+                        </div>
+                        
+                        <!-- Informações da Música -->
+                        <h4 id="current-music-name" class="mb-2">Nome da Música</h4>
+                        <p class="text-muted mb-3" id="current-music-info">Carregando...</p>
+                        
+                        <!-- Controles do Player -->
+                        <div class="mb-3">
+                            <!-- Barra de Progresso -->
+                            <div class="progress progress-music mb-2">
+                                <div id="music-progress" class="progress-bar bg-success" 
+                                     role="progressbar" style="width: 0%"></div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between">
+                                <small id="current-time">0:00</small>
+                                <small id="total-time">0:00</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Botões de Controle -->
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-secondary" id="btn-prev">
+                                <i class="fas fa-step-backward"></i>
+                            </button>
+                            <button class="btn btn-success btn-lg px-4" id="btn-play-pause">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" id="btn-next">
+                                <i class="fas fa-step-forward"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- Controles Extras -->
+                        <div class="mt-3">
+                            <div class="row">
+                                <div class="col-8">
+                                    <label class="form-label">Volume</label>
+                                    <input type="range" class="form-range" id="volume-slider" 
+                                           min="0" max="100" value="50">
+                                </div>
+                                <div class="col-4">
+                                    <div class="form-check form-switch mt-3">
+                                        <input type="checkbox" class="form-check-input" id="loop-toggle">
+                                        <label class="form-check-label" for="loop-toggle">Loop</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="no-music" class="py-5">
+                        <i class="fas fa-music fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Nenhuma música selecionada</h5>
+                        <p class="text-muted">Selecione uma música para começar a tocar</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Criar Playlist -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow border-0 h-100">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list-music"></i> Criar Playlist
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'pomodoro:criar_playlist' %}" id="playlist-form">
+                        {% csrf_token %}
+                        
+                        <!-- Nome da Playlist -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Nome da Playlist</label>
+                            <input type="text" name="nome" class="form-control" 
+                                   placeholder="Ex: Foco Total" required>
+                        </div>
+                        
+                        <!-- Descrição -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Descrição</label>
+                            <textarea name="descricao" class="form-control" rows="2" 
+                                      placeholder="Descreva sua playlist..."></textarea>
+                        </div>
+                        
+                        <!-- Ordem de Reprodução -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Ordem de Reprodução</label>
+                            <select name="ordem_reproducao" class="form-control">
+                                <option value="sequencial">Sequencial</option>
+                                <option value="aleatoria">Aleatória</option>
+                                <option value="repetir">Repetir Única</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Cor e Ícone -->
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label fw-bold">Cor</label>
+                                <input type="color" name="cor_fundo" class="form-control form-control-color" 
+                                       value="#3498db" title="Escolha a cor da playlist">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold">Ícone</label>
+                                <select name="icone" class="form-control">
+                                    <option value="fas fa-music">🎵 Música</option>
+                                    <option value="fas fa-headphones">🎧 Fones</option>
+                                    <option value="fas fa-guitar">🎸 Guitarra</option>
+                                    <option value="fas fa-piano">🎹 Piano</option>
+                                    <option value="fas fa-drum">🥁 Bateria</option>
+                                    <option value="fas fa-brain">🧠 Cérebro</option>
+                                    <option value="fas fa-book">📚 Livro</option>
+                                    <option value="fas fa-star">⭐ Estrela</option>
+                                    <option value="fas fa-heart">❤️ Coração</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Seleção de Músicas -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Selecionar Músicas</label>
+                            <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                {% for musica in musicas %}
+                                <div class="form-check">
+                                    <input type="checkbox" name="musicas_selecionadas" 
+                                           value="{{ musica.id }}" class="form-check-input" 
+                                           id="musica_{{ musica.id }}">
+                                    <label for="musica_{{ musica.id }}" class="form-check-label">
+                                        {{ musica.nome }}
+                                        <small class="text-muted">({{ musica.duracao|divisibleby:60|yesno:"0" }}{{ musica.duracao|floatformat:0 }}s)</small>
+                                    </label>
+                                </div>
+                                {% empty %}
+                                <p class="text-muted text-center">Nenhuma música disponível</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-info w-100">
+                            <i class="fas fa-plus-circle"></i> Criar Playlist
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Músicas -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow border-0">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-compact-disc"></i> Minhas Músicas
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if musicas %}
+                    <div class="row">
+                        {% for musica in musicas %}
+                        <div class="col-md-4 col-lg-3 mb-3">
+                            <div class="card music-card h-100">
+                                <div class="music-cover" style="background: linear-gradient(135deg, 
+                                    {% if musica.user == request.user %}#667eea{% else %}#36d1dc{% endif %} 0%, 
+                                    {% if musica.user == request.user %}#764ba2{% else %}#5b86e5{% endif %} 100%);">
+                                    <i class="fas {% if musica.get_extensao == '.mp3' %}fa-file-audio{% else %}fa-music{% endif %}"></i>
+                                </div>
+                                <div class="music-info">
+                                    <h6 class="card-title mb-1">{{ musica.nome }}</h6>
+                                    <small class="text-muted d-block mb-2">
+                                        <i class="fas fa-user"></i> 
+                                        {% if musica.user == request.user %}
+                                            Eu
+                                        {% else %}
+                                            {{ musica.user.username }}
+                                        {% endif %}
+                                        • {{ musica.duracao|divisibleby:60|yesno:"0" }}{{ musica.duracao|floatformat:0 }}s
+                                    </small>
+                                    
+                                    {% if musica.descricao %}
+                                    <p class="card-text small">{{ musica.descricao|truncatechars:50 }}</p>
+                                    {% endif %}
+                                    
+                                    {% if musica.tags %}
+                                    <div class="mb-2">
+                                        {% for tag in musica.tags.split|slice:":3" %}
+                                        <span class="badge tag-badge bg-secondary">{{ tag }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="music-actions d-flex justify-content-between">
+                                    <button class="btn btn-sm btn-outline-primary play-music-btn" 
+                                            data-musica-id="{{ musica.id }}"
+                                            data-musica-nome="{{ musica.nome }}">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    
+                                    <div>
+                                        {% if musica.user == request.user %}
+                                        <button class="btn btn-sm btn-outline-danger delete-music-btn"
+                                                data-musica-id="{{ musica.id }}"
+                                                data-musica-nome="{{ musica.nome }}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        {% endif %}
+                                        
+                                        <span class="badge bg-light text-dark">
+                                            <i class="fas fa-play"></i> {{ musica.vezes_tocada }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-music fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Nenhuma música adicionada</h5>
+                        <p class="text-muted">Adicione suas primeiras músicas usando o formulário acima</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Playlists -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow border-0">
+                <div class="card-header bg-purple text-white" style="background-color: #6f42c1;">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list-ol"></i> Minhas Playlists
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if playlists %}
+                    <div class="row">
+                        {% for playlist in playlists %}
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card playlist-card h-100" style="border-left-color: {{ playlist.cor_fundo }};">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h5 class="card-title">
+                                                <i class="{{ playlist.icone }}"></i> {{ playlist.nome }}
+                                            </h5>
+                                            {% if playlist.descricao %}
+                                            <p class="card-text small text-muted">{{ playlist.descricao }}</p>
+                                            {% endif %}
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-danger delete-playlist-btn"
+                                                data-playlist-id="{{ playlist.id }}"
+                                                data-playlist-nome="{{ playlist.nome }}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="mt-3">
+                                        <small class="text-muted d-block">
+                                            <i class="fas fa-music"></i> 
+                                            {{ playlist.musicas.count }} músicas • 
+                                            {{ playlist.total_duracao }}
+                                        </small>
+                                        <small class="text-muted">
+                                            <i class="fas fa-random"></i> 
+                                            {{ playlist.get_ordem_reproducao_display }}
+                                        </small>
+                                    </div>
+                                    
+                                    <!-- Músicas da Playlist -->
+                                    <div class="mt-3">
+                                        <h6 class="small fw-bold">Músicas:</h6>
+                                        <div style="max-height: 100px; overflow-y: auto;">
+                                            {% for musica in playlist.musicas.all|slice:":5" %}
+                                            <div class="d-flex justify-content-between align-items-center small mb-1">
+                                                <span>{{ musica.nome }}</span>
+                                                <span class="text-muted">{{ musica.duracao|divisibleby:60|yesno:"0" }}{{ musica.duracao|floatformat:0 }}s</span>
+                                            </div>
+                                            {% endfor %}
+                                            {% if playlist.musicas.count > 5 %}
+                                            <small class="text-muted">+{{ playlist.musicas.count|add:"-5" }} mais</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-3">
+                                        <button class="btn btn-sm w-100" 
+                                                style="background-color: {{ playlist.cor_fundo }}; color: white;"
+                                                onclick="usarPlaylist({{ playlist.id }})">
+                                            <i class="fas fa-play"></i> Usar no Pomodoro
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-list-music fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Nenhuma playlist criada</h5>
+                        <p class="text-muted">Crie sua primeira playlist para organizar suas músicas</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botão Voltar -->
+    <div class="row mt-4">
+        <div class="col-12 text-center">
+            <a href="{% url 'pomodoro:dashboard' %}" class="btn btn-primary btn-lg">
+                <i class="fas fa-arrow-left"></i> Voltar ao Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Player de Música
+let audioPlayer = new Audio();
+let currentMusic = null;
+let isPlaying = false;
+let currentTimeInterval;
+let currentPlaylist = null;
+let currentPlaylistIndex = 0;
+let loopEnabled = false;
+
+// Elementos do DOM
+const musicPlayer = document.getElementById('music-player');
+const noMusic = document.getElementById('no-music');
+const currentMusicName = document.getElementById('current-music-name');
+const currentMusicInfo = document.getElementById('current-music-info');
+const musicProgress = document.getElementById('music-progress');
+const currentTime = document.getElementById('current-time');
+const totalTime = document.getElementById('total-time');
+const btnPlayPause = document.getElementById('btn-play-pause');
+const btnPrev = document.getElementById('btn-prev');
+const btnNext = document.getElementById('btn-next');
+const volumeSlider = document.getElementById('volume-slider');
+const loopToggle = document.getElementById('loop-toggle');
+
+// Função para formatar tempo
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Atualizar progresso da música
+function updateProgress() {
+    if (audioPlayer.duration) {
+        const progress = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+        musicProgress.style.width = `${progress}%`;
+        currentTime.textContent = formatTime(audioPlayer.currentTime);
+    }
+}
+
+// Tocar música
+function playMusic(musicId, musicName) {
+    fetch(`/musicas/${musicId}/play/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                audioPlayer.src = data.url;
+                audioPlayer.play();
+                
+                currentMusic = {
+                    id: musicId,
+                    name: musicName,
+                    url: data.url,
+                    duration: data.duracao
+                };
+                
+                // Atualizar UI
+                musicPlayer.style.display = 'block';
+                noMusic.style.display = 'none';
+                currentMusicName.textContent = musicName;
+                currentMusicInfo.textContent = `Duração: ${formatTime(data.duracao)}`;
+                totalTime.textContent = formatTime(data.duracao);
+                
+                // Iniciar atualização de progresso
+                clearInterval(currentTimeInterval);
+                currentTimeInterval = setInterval(updateProgress, 1000);
+                
+                // Atualizar botão
+                btnPlayPause.innerHTML = '<i class="fas fa-pause"></i>';
+                isPlaying = true;
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao tocar música:', error);
+            alert('Erro ao reproduzir música');
+        });
+}
+
+// Event Listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Botões de play nas músicas
+    document.querySelectorAll('.play-music-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const musicId = this.getAttribute('data-musica-id');
+            const musicName = this.getAttribute('data-musica-nome');
+            playMusic(musicId, musicName);
+        });
+    });
+    
+    // Botões de deletar música
+    document.querySelectorAll('.delete-music-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const musicId = this.getAttribute('data-musica-id');
+            const musicName = this.getAttribute('data-musica-nome');
+            
+            if (confirm(`Tem certeza que deseja deletar a música "${musicName}"?`)) {
+                fetch(`/musicas/${musicId}/deletar/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        location.reload();
+                    }
+                });
+            }
+        });
+    });
+    
+    // Botões de deletar playlist
+    document.querySelectorAll('.delete-playlist-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const playlistId = this.getAttribute('data-playlist-id');
+            const playlistName = this.getAttribute('data-playlist-nome');
+            
+            if (confirm(`Tem certeza que deseja deletar a playlist "${playlistName}"?`)) {
+                fetch(`/playlists/${playlistId}/deletar/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        location.reload();
+                    }
+                });
+            }
+        });
+    });
+    
+    // Controles do player
+    btnPlayPause.addEventListener('click', function() {
+        if (audioPlayer.src) {
+            if (isPlaying) {
+                audioPlayer.pause();
+                this.innerHTML = '<i class="fas fa-play"></i>';
+                clearInterval(currentTimeInterval);
+            } else {
+                audioPlayer.play();
+                this.innerHTML = '<i class="fas fa-pause"></i>';
+                currentTimeInterval = setInterval(updateProgress, 1000);
+            }
+            isPlaying = !isPlaying;
+        }
+    });
+    
+    btnPrev.addEventListener('click', function() {
+        // Implementar lógica para música anterior
+        console.log('Música anterior');
+    });
+    
+    btnNext.addEventListener('click', function() {
+        // Implementar lógica para próxima música
+        console.log('Próxima música');
+    });
+    
+    // Controle de volume
+    volumeSlider.addEventListener('input', function() {
+        audioPlayer.volume = this.value / 100;
+    });
+    
+    // Loop
+    loopToggle.addEventListener('change', function() {
+        loopEnabled = this.checked;
+        audioPlayer.loop = loopEnabled;
+    });
+    
+    // Quando a música terminar
+    audioPlayer.addEventListener('ended', function() {
+        if (!loopEnabled) {
+            btnPlayPause.innerHTML = '<i class="fas fa-play"></i>';
+            isPlaying = false;
+            clearInterval(currentTimeInterval);
+        }
+    });
+    
+    // Drag & Drop para upload
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('id_arquivo_audio');
+    const fileInfo = document.getElementById('file-info');
+    const fileName = document.getElementById('file-name');
+    const fileSize = document.getElementById('file-size');
+    
+    uploadArea.addEventListener('click', function() {
+        fileInput.click();
+    });
+    
+    fileInput.addEventListener('change', function() {
+        if (this.files.length > 0) {
+            const file = this.files[0];
+            fileName.textContent = file.name;
+            fileSize.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+            fileInfo.style.display = 'block';
+        }
+    });
+    
+    // Drag & Drop events
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, highlight, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, unhighlight, false);
+    });
+    
+    function highlight() {
+        uploadArea.classList.add('dragover');
+    }
+    
+    function unhighlight() {
+        uploadArea.classList.remove('dragover');
+    }
+    
+    uploadArea.addEventListener('drop', handleDrop, false);
+    
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        if (files.length > 0) {
+            fileInput.files = files;
+            
+            const file = files[0];
+            fileName.textContent = file.name;
+            fileSize.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+            fileInfo.style.display = 'block';
+        }
+    }
+});
+
+// Função para usar playlist no Pomodoro
+function usarPlaylist(playlistId) {
+    // Salvar preferência no localStorage
+    localStorage.setItem('pomodoro_playlist', playlistId);
+    
+    // Redirecionar para o dashboard
+    window.location.href = "{% url 'pomodoro:dashboard' %}";
+}
+</script>
+{% endblock %}

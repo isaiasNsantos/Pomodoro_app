@@ -1,0 +1,793 @@
+<!-- templates/pomodoro_app/dashboard.html -->
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard - Pomodoro Study{% endblock %}
+
+{% block extra_css %}
+<style>
+    .timer-display {
+        font-size: 5rem;
+        font-weight: bold;
+        font-family: 'Courier New', monospace;
+        color: #0d6efd;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+    .status-badge {
+        font-size: 1.2rem;
+        padding: 10px 20px;
+        border-radius: 50px;
+    }
+    .progress-container {
+        height: 25px;
+        border-radius: 12px;
+        overflow: hidden;
+        background-color: #e9ecef;
+    }
+    .session-history {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    .session-history::-webkit-scrollbar {
+        width: 5px;
+    }
+    .session-history::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+    .session-history::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 10px;
+    }
+    .modalidade-badge {
+        font-size: 0.8rem;
+        padding: 4px 8px;
+    }
+    .form-switch .form-check-input {
+        width: 3em;
+        height: 1.5em;
+    }
+    .input-group-text {
+        background-color: #f8f9fa;
+        border-color: #dee2e6;
+    }
+    .card-icon {
+        font-size: 2rem;
+        margin-bottom: 10px;
+    }
+    .btn-group-lg > .btn {
+        border-radius: 10px;
+        margin: 0 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <div class="row">
+        <!-- Timer Principal -->
+        <div class="col-lg-8">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">
+                        <i class="fas fa-clock"></i> Timer Pomodoro
+                    </h3>
+                    {% if sessao_ativa %}
+                    <span class="badge bg-light text-dark">
+                        Sessão #{{ sessao_ativa.id }}
+                    </span>
+                    {% endif %}
+                </div>
+                
+                <div class="card-body text-center py-4">
+                    {% if sessao_ativa %}
+                        {% with sessao_atual=sessao_ativa.sessoes.last %}
+                        <div id="timer-container">
+                            <!-- Display do Timer -->
+                            <div class="timer-display mb-3" id="timer-display">
+                                {{ sessao_atual.tempo_restante|divisibleby:60|yesno:"25:00,05:00" }}
+                            </div>
+                            
+                            <!-- Status e Ciclo -->
+                            <div class="mb-4">
+                                <span class="badge status-badge 
+                                    {% if sessao_atual.status == 'foco' %}bg-danger
+                                    {% elif sessao_atual.status == 'pausa_curta' %}bg-success
+                                    {% elif sessao_atual.status == 'pausa_longa' %}bg-info
+                                    {% else %}bg-secondary{% endif %}">
+                                    <i class="fas 
+                                        {% if sessao_atual.status == 'foco' %}fa-brain
+                                        {% elif sessao_atual.status == 'pausa_curta' %}fa-coffee
+                                        {% elif sessao_atual.status == 'pausa_longa' %}fa-couch
+                                        {% else %}fa-pause{% endif %}">
+                                    </i>
+                                    {{ sessao_atual.get_status_display|upper }}
+                                    | CICLO {{ sessao_atual.ciclo_numero }}
+                                </span>
+                            </div>
+                            
+                            <!-- Controles -->
+                            <div class="btn-group btn-group-lg mb-4" role="group">
+                                <button class="btn btn-success" id="btn-proximo">
+                                    <i class="fas fa-forward"></i> Próxima Fase
+                                </button>
+                                
+                                {% if sessao_atual.status == 'pausado' %}
+                                <button class="btn btn-warning" id="btn-retomar">
+                                    <i class="fas fa-play"></i> Retomar
+                                </button>
+                                {% else %}
+                                <button class="btn btn-warning" id="btn-pausar">
+                                    <i class="fas fa-pause"></i> Pausar
+                                </button>
+                                {% endif %}
+                                
+                                <button class="btn btn-danger" id="btn-finalizar">
+                                    <i class="fas fa-stop"></i> Finalizar
+                                </button>
+                            </div>
+                            
+                            <!-- Informações da Sessão -->
+                            <div class="row text-center mt-4">
+                                <div class="col-md-4">
+                                    <div class="card border-info h-100">
+                                        <div class="card-body">
+                                            <div class="card-icon text-info">
+                                                <i class="fas fa-sync-alt"></i>
+                                            </div>
+                                            <h6 class="card-subtitle mb-2 text-muted">Ciclos Completos</h6>
+                                            <h4 class="card-title">{{ sessao_ativa.ciclos_completados }}</h4>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card border-success h-100">
+                                        <div class="card-body">
+                                            <div class="card-icon text-success">
+                                                <i class="fas fa-hourglass-half"></i>
+                                            </div>
+                                            <h6 class="card-subtitle mb-2 text-muted">Tempo Estudado</h6>
+                                            <h4 class="card-title">{{ sessao_ativa.tempo_total_estudado }} min</h4>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card border-warning h-100">
+                                        <div class="card-body">
+                                            <div class="card-icon text-warning">
+                                                <i class="fas fa-bullseye"></i>
+                                            </div>
+                                            <h6 class="card-subtitle mb-2 text-muted">Próxima Pausa Longa</h6>
+                                            <h4 class="card-title">{{ sessao_ativa.ciclos_para_pausa_longa }} ciclos</h4>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endwith %}
+                    {% else %}
+                        <!-- Formulário para Nova Sessão -->
+                        <div class="py-4">
+                            <h2 class="text-primary mb-4">
+                                <i class="fas fa-play-circle"></i> Iniciar Nova Sessão
+                            </h2>
+                            
+                            {% if form.errors %}
+                            <div class="alert alert-danger">
+                                <h5><i class="fas fa-exclamation-triangle"></i> Erros encontrados:</h5>
+                                <ul class="mb-0">
+                                    {% for field in form %}
+                                        {% for error in field.errors %}
+                                            <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                                        {% endfor %}
+                                    {% endfor %}
+                                    {% for error in form.non_field_errors %}
+                                        <li>{{ error }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            {% endif %}
+                            
+                            <form method="post" action="{% url 'pomodoro:iniciar_sessao' %}" id="pomodoro-form" novalidate>
+                                {% csrf_token %}
+                                
+                                <div class="row">
+                                    <!-- Coluna Esquerda -->
+                                    <div class="col-md-6">
+                                        <!-- Técnica -->
+                                        <div class="mb-3">
+                                            <label for="id_tecnica" class="form-label fw-bold">
+                                                {{ form.tecnica.label }}
+                                            </label>
+                                            {{ form.tecnica }}
+                                            <div class="form-text">{{ form.tecnica.help_text|default:"" }}</div>
+                                        </div>
+                                        
+                                        <!-- Modalidade -->
+                                        <div class="mb-3">
+                                            <label for="id_modalidade" class="form-label fw-bold">
+                                                {{ form.modalidade.label }}
+                                            </label>
+                                            {{ form.modalidade }}
+                                            <div class="form-text">{{ form.modalidade.help_text|default:"" }}</div>
+                                        </div>
+                                        
+                                        <!-- Configurações de Notificação -->
+                                        <div class="card mb-3 border-secondary">
+                                            <div class="card-header bg-light">
+                                                <h6 class="mb-0">
+                                                    <i class="fas fa-bell"></i> Configurações de Notificação
+                                                </h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <!-- Som de Notificação -->
+                                                <div class="form-check form-switch mb-3">
+                                                    {{ form.som_notificacao }}
+                                                    <label class="form-check-label" for="id_som_notificacao">
+                                                        {{ form.som_notificacao.label }}
+                                                    </label>
+                                                </div>
+                                                
+                                                <!-- Notificação Desktop -->
+                                                <div class="form-check form-switch">
+                                                    {{ form.notificacao_desktop }}
+                                                    <label class="form-check-label" for="id_notificacao_desktop">
+                                                        {{ form.notificacao_desktop.label }}
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Coluna Direita -->
+                                    <div class="col-md-6">
+                                        <!-- Tempo de Foco -->
+                                        <div class="mb-3">
+                                            <label for="id_tempo_foco" class="form-label fw-bold">
+                                                {{ form.tempo_foco.label }}
+                                            </label>
+                                            <div class="input-group">
+                                                {{ form.tempo_foco }}
+                                                <span class="input-group-text">minutos</span>
+                                            </div>
+                                            <div class="form-text text-muted">{{ form.tempo_foco.help_text }}</div>
+                                            {% if form.tempo_foco.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.tempo_foco.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Tempo de Pausa Curta -->
+                                        <div class="mb-3">
+                                            <label for="id_tempo_pausa_curta" class="form-label fw-bold">
+                                                {{ form.tempo_pausa_curta.label }}
+                                            </label>
+                                            <div class="input-group">
+                                                {{ form.tempo_pausa_curta }}
+                                                <span class="input-group-text">minutos</span>
+                                            </div>
+                                            <div class="form-text text-muted">{{ form.tempo_pausa_curta.help_text }}</div>
+                                            {% if form.tempo_pausa_curta.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.tempo_pausa_curta.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Tempo de Pausa Longa -->
+                                        <div class="mb-3">
+                                            <label for="id_tempo_pausa_longa" class="form-label fw-bold">
+                                                {{ form.tempo_pausa_longa.label }}
+                                            </label>
+                                            <div class="input-group">
+                                                {{ form.tempo_pausa_longa }}
+                                                <span class="input-group-text">minutos</span>
+                                            </div>
+                                            <div class="form-text text-muted">{{ form.tempo_pausa_longa.help_text }}</div>
+                                            {% if form.tempo_pausa_longa.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.tempo_pausa_longa.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Ciclos para Pausa Longa -->
+                                        <div class="mb-3">
+                                            <label for="id_ciclos_para_pausa_longa" class="form-label fw-bold">
+                                                {{ form.ciclos_para_pausa_longa.label }}
+                                            </label>
+                                            <div class="input-group">
+                                                {{ form.ciclos_para_pausa_longa }}
+                                                <span class="input-group-text">ciclos</span>
+                                            </div>
+                                            <div class="form-text text-muted">{{ form.ciclos_para_pausa_longa.help_text }}</div>
+                                            {% if form.ciclos_para_pausa_longa.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.ciclos_para_pausa_longa.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Botões -->
+                                <div class="row mt-4">
+                                    <div class="col-md-8 mx-auto">
+                                        <div class="d-grid gap-2">
+                                            <button type="submit" class="btn btn-primary btn-lg">
+                                                <i class="fas fa-rocket"></i> INICIAR SESSÃO POMODORO
+                                            </button>
+                                            
+                                            <!-- Botão para configurações padrão -->
+                                            <button type="button" class="btn btn-outline-secondary" id="btn-config-padrao">
+                                                <i class="fas fa-cog"></i> Usar Configurações Padrão
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Painel Lateral -->
+        <div class="col-lg-4">
+            <!-- Meta Diária -->
+            <div class="card shadow border-0 mb-4">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-bullseye"></i> Meta Diária
+                    </h6>
+                    <small>{{ meta_hoje.data|date:"d/m/Y" }}</small>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'pomodoro:atualizar_meta' %}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Minutos por dia:</label>
+                            <div class="input-group">
+                                {{ meta_form.meta_minutos }}
+                                <span class="input-group-text">min</span>
+                            </div>
+                            {% if meta_form.meta_minutos.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in meta_form.meta_minutos.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <button type="submit" class="btn btn-outline-info w-100">
+                            <i class="fas fa-save"></i> Atualizar Meta
+                        </button>
+                    </form>
+                    
+                    <div class="mt-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small class="fw-bold">Progresso:</small>
+                            <small class="fw-bold">{{ meta_hoje.minutos_estudados }}/{{ meta_hoje.meta_minutos }} min</small>
+                        </div>
+                        <div class="progress progress-container">
+                            <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" 
+                                 style="width: {{ meta_hoje.progresso_porcentagem }}%">
+                            </div>
+                        </div>
+                        <div class="text-center mt-2">
+                            <span class="badge bg-{% if meta_hoje.progresso_porcentagem >= 100 %}success{% elif meta_hoje.progresso_porcentagem >= 75 %}warning{% else %}info{% endif %} p-2">
+                                {{ meta_hoje.progresso_porcentagem|floatformat:0 }}% concluído
+                                {% if meta_hoje.progresso_porcentagem >= 100 %}
+                                    🎉
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Estatísticas Rápidas -->
+            <div class="card shadow border-0 mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-line"></i> Estatísticas
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 mb-3">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <h3 class="text-primary">{{ sessoes_completas }}</h3>
+                                <small class="text-muted">Sessões Completas</small>
+                            </div>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <h3 class="text-success">{{ total_minutos }}</h3>
+                                <small class="text-muted">Minutos Estudados</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <h3 class="text-info">{{ total_minutos|divisibleby:60|yesno:"0" }}{{ total_minutos|floatformat:0 }}</h3>
+                                <small class="text-muted">Horas Estudadas</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <h3 class="text-warning">{{ total_minutos|divisibleby:25|yesno:"0" }}{{ total_minutos|floatformat:0 }}</h3>
+                                <small class="text-muted">Pomodoros Completos</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Histórico Recente -->
+            <div class="card shadow border-0">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-history"></i> Histórico Recente
+                    </h6>
+                </div>
+                <div class="card-body session-history">
+                    {% if historico %}
+                        {% for sessao in historico %}
+                        <div class="card mb-2 border-start border-{% if sessao.em_andamento %}warning{% else %}success{% endif %} border-3">
+                            <div class="card-body py-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <small class="text-muted d-block">
+                                            <i class="fas fa-calendar-alt"></i> {{ sessao.data_criacao|date:"d/m H:i" }}
+                                        </small>
+                                        <span class="badge modalidade-badge bg-{% if sessao.modalidade == 'foco' %}danger{% elif sessao.modalidade == 'revisao' %}info{% elif sessao.modalidade == 'pratica' %}warning{% else %}primary{% endif %}">
+                                            {{ sessao.get_modality_display }}
+                                        </span>
+                                    </div>
+                                    <div class="text-end">
+                                        <h6 class="mb-0">{{ sessao.tempo_total_estudado }} min</h6>
+                                        <small class="text-muted">{{ sessao.ciclos_completados }} ciclos</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-3">
+                            <i class="fas fa-history fa-2x text-muted mb-3"></i>
+                            <p class="text-muted mb-0">Nenhuma sessão registrada</p>
+                            <small class="text-muted">Inicie sua primeira sessão Pomodoro!</small>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Variáveis globais
+let tempoRestante = {% if sessao_ativa %}{{ sessao_ativa.sessoes.last.tempo_restante|default:1500 }}{% else %}1500{% endif %};
+let timerInterval;
+let isPaused = false;
+let sessaoAtivaId = {% if sessao_ativa %}{{ sessao_ativa.id }}{% else %}null{% endif %};
+
+// Função para formatar o tempo
+function formatarTempo(segundos) {
+    const minutos = Math.floor(segundos / 60);
+    const segs = segundos % 60;
+    return `${minutos.toString().padStart(2, '0')}:${segs.toString().padStart(2, '0')}`;
+}
+
+// Atualizar display do timer
+function atualizarDisplay() {
+    const timerElement = document.getElementById('timer-display');
+    if (timerElement) {
+        timerElement.textContent = formatarTempo(tempoRestante);
+        
+        // Mudar cor conforme o tempo
+        if (tempoRestante < 60) {
+            timerElement.style.color = '#dc3545'; // Vermelho para último minuto
+            timerElement.classList.add('pulse-animation');
+        } else if (tempoRestante < 300) {
+            timerElement.style.color = '#fd7e14'; // Laranja para últimos 5 minutos
+            timerElement.classList.remove('pulse-animation');
+        } else {
+            timerElement.style.color = '#0d6efd'; // Azul para tempo normal
+            timerElement.classList.remove('pulse-animation');
+        }
+    }
+}
+
+// Iniciar contagem regressiva
+function iniciarTimer() {
+    clearInterval(timerInterval);
+    
+    timerInterval = setInterval(() => {
+        if (tempoRestante > 0 && !isPaused) {
+            tempoRestante--;
+            atualizarDisplay();
+            
+            // Atualizar no servidor a cada 30 segundos (apenas se houver sessão ativa)
+            if (sessaoAtivaId && tempoRestante % 30 === 0 && tempoRestante > 0) {
+                fetch(`/sessao/${sessaoAtivaId}/atualizar/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({ tempo_restante: tempoRestante })
+                }).catch(error => console.error('Erro ao atualizar tempo:', error));
+            }
+            
+            // Tocar alarme quando o tempo acabar
+            if (tempoRestante === 0) {
+                clearInterval(timerInterval);
+                tocarAlarme();
+                mostrarNotificacao();
+            }
+        }
+    }, 1000);
+}
+
+// Tocar som de alarme
+function tocarAlarme() {
+    const somNotificacao = {% if sessao_ativa %}{{ sessao_ativa.som_notificacao|yesno:"true,false" }}{% else %}true{% endif %};
+    
+    if (somNotificacao) {
+        const audio = new Audio("{% static 'sounds/notification.mp3' %}");
+        audio.volume = 0.5;
+        audio.play().catch(e => console.log('Erro ao reproduzir som:', e));
+    }
+}
+
+// Mostrar notificação
+function mostrarNotificacao() {
+    const notificacaoDesktop = {% if sessao_ativa %}{{ sessao_ativa.notificacao_desktop|yesno:"true,false" }}{% else %}true{% endif %};
+    
+    if (notificacaoDesktop && "Notification" in window) {
+        if (Notification.permission === "granted") {
+            new Notification("⏰ Tempo Esgotado!", {
+                body: "Hora de fazer uma pausa!",
+                icon: "{% static 'images/tomato.png' %}"
+            });
+        } else if (Notification.permission !== "denied") {
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    new Notification("⏰ Tempo Esgotado!", {
+                        body: "Hora de fazer uma pausa!",
+                        icon: "{% static 'images/tomato.png' %}"
+                    });
+                }
+            });
+        }
+    }
+}
+
+// Solicitar permissão para notificações
+function solicitarPermissaoNotificacao() {
+    if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
+    }
+}
+
+// Configurar eventos quando o DOM estiver carregado
+document.addEventListener('DOMContentLoaded', function() {
+    // Iniciar timer se houver sessão ativa
+    {% if sessao_ativa %}
+    atualizarDisplay();
+    iniciarTimer();
+    solicitarPermissaoNotificacao();
+    
+    // Botão Próxima Fase
+    document.getElementById('btn-proximo')?.addEventListener('click', function() {
+        clearInterval(timerInterval);
+        window.location.href = `/sessao/${sessaoAtivaId}/proxima/`;
+    });
+    
+    // Botão Pausar
+    document.getElementById('btn-pausar')?.addEventListener('click', function() {
+        isPaused = true;
+        clearInterval(timerInterval);
+        window.location.href = `/sessao/${sessaoAtivaId}/pausar/`;
+    });
+    
+    // Botão Retomar
+    document.getElementById('btn-retomar')?.addEventListener('click', function() {
+        window.location.href = `/sessao/${sessaoAtivaId}/retomar/`;
+    });
+    
+    // Botão Finalizar
+    document.getElementById('btn-finalizar')?.addEventListener('click', function() {
+        if (confirm('Tem certeza que deseja finalizar esta sessão?\n\nO tempo restante não será contabilizado.')) {
+            clearInterval(timerInterval);
+            window.location.href = `/sessao/${sessaoAtivaId}/finalizar/`;
+        }
+    });
+    
+    // Atalhos de teclado
+    document.addEventListener('keydown', function(e) {
+        if (sessaoAtivaId && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            switch(e.key) {
+                case ' ':
+                    e.preventDefault();
+                    if (isPaused) {
+                        document.getElementById('btn-retomar')?.click();
+                    } else {
+                        document.getElementById('btn-pausar')?.click();
+                    }
+                    break;
+                case 'n':
+                case 'N':
+                    e.preventDefault();
+                    document.getElementById('btn-proximo')?.click();
+                    break;
+                case 'f':
+                case 'F':
+                    e.preventDefault();
+                    document.getElementById('btn-finalizar')?.click();
+                    break;
+                case 'r':
+                case 'R':
+                    e.preventDefault();
+                    if (isPaused) {
+                        document.getElementById('btn-retomar')?.click();
+                    }
+                    break;
+            }
+        }
+    });
+    {% endif %}
+    
+    // Botão para configurações padrão
+    const btnConfigPadrao = document.getElementById('btn-config-padrao');
+    if (btnConfigPadrao) {
+        btnConfigPadrao.addEventListener('click', function() {
+            // Definir valores padrão do Pomodoro
+            document.getElementById('id_tecnica').value = 'pomodoro';
+            document.getElementById('id_modalidade').value = 'foco';
+            document.getElementById('id_tempo_foco').value = '25';
+            document.getElementById('id_tempo_pausa_curta').value = '5';
+            document.getElementById('id_tempo_pausa_longa').value = '15';
+            document.getElementById('id_ciclos_para_pausa_longa').value = '4';
+            document.getElementById('id_som_notificacao').checked = true;
+            document.getElementById('id_notificacao_desktop').checked = true;
+            
+            // Feedback visual
+            const originalText = this.innerHTML;
+            this.innerHTML = '<i class="fas fa-check"></i> Configurações Aplicadas!';
+            this.classList.remove('btn-outline-secondary');
+            this.classList.add('btn-success');
+            
+            setTimeout(() => {
+                this.innerHTML = originalText;
+                this.classList.remove('btn-success');
+                this.classList.add('btn-outline-secondary');
+            }, 2000);
+        });
+    }
+    
+    // Validação do formulário Pomodoro
+    const pomodoroForm = document.getElementById('pomodoro-form');
+    if (pomodoroForm) {
+        pomodoroForm.addEventListener('submit', function(e) {
+            let isValid = true;
+            const errors = [];
+            
+            // Validar tempo de foco
+            const tempoFoco = document.getElementById('id_tempo_foco');
+            if (tempoFoco) {
+                const valor = parseInt(tempoFoco.value);
+                if (isNaN(valor) || valor < 1 || valor > 120) {
+                    errors.push('• Tempo de foco deve estar entre 1 e 120 minutos.');
+                    tempoFoco.classList.add('is-invalid');
+                    isValid = false;
+                } else {
+                    tempoFoco.classList.remove('is-invalid');
+                }
+            }
+            
+            // Validar tempo de pausa curta
+            const tempoPausaCurta = document.getElementById('id_tempo_pausa_curta');
+            if (tempoPausaCurta) {
+                const valor = parseInt(tempoPausaCurta.value);
+                if (isNaN(valor) || valor < 1 || valor > 30) {
+                    errors.push('• Tempo de pausa curta deve estar entre 1 e 30 minutos.');
+                    tempoPausaCurta.classList.add('is-invalid');
+                    isValid = false;
+                } else {
+                    tempoPausaCurta.classList.remove('is-invalid');
+                }
+            }
+            
+            // Validar tempo de pausa longa
+            const tempoPausaLonga = document.getElementById('id_tempo_pausa_longa');
+            if (tempoPausaLonga) {
+                const valor = parseInt(tempoPausaLonga.value);
+                if (isNaN(valor) || valor < 5 || valor > 60) {
+                    errors.push('• Tempo de pausa longa deve estar entre 5 e 60 minutos.');
+                    tempoPausaLonga.classList.add('is-invalid');
+                    isValid = false;
+                } else {
+                    tempoPausaLonga.classList.remove('is-invalid');
+                }
+            }
+            
+            // Validar ciclos para pausa longa
+            const ciclosPausaLonga = document.getElementById('id_ciclos_para_pausa_longa');
+            if (ciclosPausaLonga) {
+                const valor = parseInt(ciclosPausaLonga.value);
+                if (isNaN(valor) || valor < 1 || valor > 20) {
+                    errors.push('• Ciclos para pausa longa deve estar entre 1 e 20.');
+                    ciclosPausaLonga.classList.add('is-invalid');
+                    isValid = false;
+                } else {
+                    ciclosPausaLonga.classList.remove('is-invalid');
+                }
+            }
+            
+            if (!isValid) {
+                e.preventDefault();
+                const errorHtml = `
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <h5><i class="fas fa-exclamation-triangle"></i> Erros de validação:</h5>
+                        <ul class="mb-0">
+                            ${errors.map(error => `<li>${error}</li>`).join('')}
+                        </ul>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `;
+                
+                // Inserir mensagem de erro no topo do formulário
+                const formContainer = document.querySelector('.py-4');
+                const existingAlert = formContainer.querySelector('.alert');
+                if (existingAlert) {
+                    existingAlert.remove();
+                }
+                
+                formContainer.insertAdjacentHTML('afterbegin', errorHtml);
+                
+                // Rolar para o topo do formulário
+                window.scrollTo({
+                    top: formContainer.offsetTop - 100,
+                    behavior: 'smooth'
+                });
+            }
+        });
+    }
+});
+
+// Prevenir recarregamento da página se houver sessão ativa
+window.addEventListener('beforeunload', function (e) {
+    if (sessaoAtivaId) {
+        e.preventDefault();
+        e.returnValue = 'Você tem uma sessão Pomodoro ativa. Tem certeza que deseja sair?';
+    }
+});
+
+// Adicionar estilo CSS para animação de pulso
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+        100% { transform: scale(1); }
+    }
+    .pulse-animation {
+        animation: pulse 1s infinite;
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}
